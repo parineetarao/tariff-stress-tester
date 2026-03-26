@@ -8,6 +8,7 @@ this file is purely wiring.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from routers import scenarios
 
 app = FastAPI(
     title="Tariff Stress Tester API",
@@ -22,6 +23,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register routers
+app.include_router(scenarios.router)
 
 
 @app.get("/health")
@@ -41,4 +45,5 @@ def root():
         "message": "Tariff Stress Tester API",
         "docs": "/docs",
         "health": "/health",
+        "scenarios": "/scenarios",
     }
