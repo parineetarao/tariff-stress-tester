@@ -17,6 +17,7 @@ Sources documented in README.md.
 """
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 
 # ---------------------------------------------------------------------------
@@ -232,9 +233,14 @@ SECTOR_EXPOSURE_MAP: dict[str, SectorExposure] = {
 # Public functions
 # ---------------------------------------------------------------------------
 
+@lru_cache(maxsize=128)
 def get_sector_for_ticker(ticker: str) -> str:
     """
     Look up the GICS sector for a given ticker using yfinance.
+    
+    Result is cached after first call — subsequent calls for the
+    same ticker return instantly without a network request.
+    lru_cache persists for the lifetime of the server process.
 
     Falls back to 'Unknown' if the sector cannot be determined,
     rather than crashing — unknown tickers get medium exposure.
@@ -249,7 +255,6 @@ def get_sector_for_ticker(ticker: str) -> str:
         import yfinance as yf
         info = yf.Ticker(ticker).info
         sector = info.get("sector", "Unknown")
-        # Normalise to our map keys
         if sector not in SECTOR_EXPOSURE_MAP:
             return "Unknown"
         return sector
