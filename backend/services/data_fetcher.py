@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 from typing import Tuple
+from functools import lru_cache
 
 
 def fetch_price_data(tickers: list[str]) -> pd.DataFrame:
@@ -167,3 +168,28 @@ def get_portfolio_data(tickers: list[str]) -> dict:
         "cov_matrix": cov_matrix,
         "n_days": len(log_returns),
     }
+
+
+@lru_cache(maxsize=128)
+def get_sector_for_ticker(ticker: str) -> str:
+    """
+    Look up the GICS sector for a given ticker using yfinance.
+
+    Cached after first call — subsequent calls return instantly
+    without a network request. Cache persists for server lifetime.
+
+    Lives in data_fetcher.py because it makes a network request.
+    exposure.py imports from here rather than fetching directly.
+
+    Args:
+        ticker: Uppercase stock ticker symbol
+
+    Returns:
+        GICS sector string e.g. 'Technology', 'Health Care'
+        Falls back to 'Unknown' if lookup fails.
+    """
+    try:
+        info = yf.Ticker(ticker).info
+        return info.get("sector", "Unknown")
+    except Exception:
+        return "Unknown"

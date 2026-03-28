@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 from typing import Tuple
 
-from services.exposure import get_scenario_multiplier
+from services.exposure import get_scenario_multiplier, Scenario
 
 # Simulation constants — these are architectural decisions
 N_SIMULATIONS = 10_000          # number of Monte Carlo paths
@@ -32,28 +32,17 @@ def _apply_scenario_adjustments(
     mean_returns: pd.Series,
     cov_matrix: pd.DataFrame,
     tickers: list[str],
-    scenario: str,
+    scenario: Scenario,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Apply tariff multipliers to mean returns and covariance matrix
-    for a given scenario.
+    Apply tariff multipliers to mean returns and covariance matrix.
 
-    Mean adjustment is additive: new_mean = historical_mean + adjustment
-    Vol adjustment is multiplicative: new_vol = historical_vol * multiplier
+    Mean adjustment is RELATIVE: new_mean = historical_mean * (1 + mean_factor)
+    This ensures the shock scales proportionally with each stock's own
+    return level rather than applying a uniform absolute cut.
 
-    We adjust the covariance matrix by scaling each element by the
-    product of the two stocks' volatility multipliers. This correctly
-    propagates the vol shock through the full covariance structure.
-
-    Args:
-        mean_returns: annualised mean returns per ticker
-        cov_matrix:   annualised covariance matrix
-        tickers:      list of ticker symbols
-        scenario:     'baseline', 'escalation', or 'trade_war'
-
-    Returns:
-        Tuple of (adjusted_daily_means, adjusted_daily_cov)
-        Both converted to daily scale for the simulation.
+    Vol adjustment is multiplicative: new_vol = historical_vol * vol_multiplier
+    Covariance matrix scaled by product of each pair's vol multipliers.
     """
     n = len(tickers)
     adj_annual_means = np.zeros(n)
@@ -61,26 +50,23 @@ def _apply_scenario_adjustments(
 
     for i, ticker in enumerate(tickers):
         multiplier = get_scenario_multiplier(ticker, scenario)
+
+        # Relative adjustment — scales with the stock's own return
         adj_annual_means[i] = (
-            mean_returns[ticker] + multiplier.mean_adjustment
+            mean_returns[ticker] * (1 + multiplier.mean_factor)
         )
         vol_multipliers[i] = multiplier.vol_multiplier
 
-    # Convert annualised means to daily
     adj_daily_means = adj_annual_means / TRADING_DAYS_PER_YEAR
 
-    # Scale covariance matrix by vol multipliers
-    # cov_ij_new = cov_ij_old * vol_mult_i * vol_mult_j
     cov_array = cov_matrix.values.copy()
     for i in range(n):
         for j in range(n):
             cov_array[i, j] *= vol_multipliers[i] * vol_multipliers[j]
 
-    # Convert annualised covariance to daily
     adj_daily_cov = cov_array / TRADING_DAYS_PER_YEAR
 
     return adj_daily_means, adj_daily_cov
-
 
 def _run_simulation(
     daily_means: np.ndarray,
@@ -240,7 +226,7 @@ def run_scenario(
     tickers: list[str],
     weights: list[float],
     initial_value: float,
-    scenario: str,
+    scenario: Scenario,
 ) -> dict:
     """
     Master function: run the full Monte Carlo simulation for one scenario.

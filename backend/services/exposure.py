@@ -1,23 +1,43 @@
 """
 Tariff exposure model for the Tariff Stress Tester.
 
-This module maps each stock's GICS sector to a tariff sensitivity
-profile — a set of multipliers that adjust mean return and volatility
-under each scenario.
+Responsibilities:
+  - Define the Scenario enum (single source of truth for scenario names)
+  - Map GICS sectors to tariff sensitivity profiles
+  - Apply scenario multipliers to simulation parameters
 
-This is the differentiating layer of the project. Rather than applying
-uniform shocks to all holdings, we model each sector's real-world
-exposure to US tariff escalation based on:
+This module contains ONLY logic — no network calls, no data fetching.
+Sector lookup lives in data_fetcher.get_sector_for_ticker().
 
-- Supply chain dependence on imported goods (semiconductors, pharma APIs)
-- Revenue exposure to retaliatory tariffs (exporters vs domestic)
-- Historical sector behaviour during prior tariff episodes (2018-2019)
+Multiplier methodology:
+  mean_factor:   relative reduction applied as new_mean = mean * (1 + factor)
+                 -0.12 means a 12% proportional reduction in expected return.
+                 Relative adjustment ensures shocks scale with each stock's
+                 own return level rather than applying uniform absolute cuts.
+  vol_multiplier: multiplicative scaling of volatility.
+                 1.25 means 25% increase in annualised volatility.
 
-Sources documented in README.md.
+Sources: USTR Section 301 tariff schedules, CBO drug supply chain report
+(2023), Goldman Sachs sector impact estimates (March 2026),
+SOX index behaviour during 2018-2019 tariff escalation.
 """
 
 from dataclasses import dataclass
-from functools import lru_cache
+from enum import Enum
+
+from services.data_fetcher import get_sector_for_ticker
+
+
+# ---------------------------------------------------------------------------
+# Scenario enum — single source of truth for valid scenario identifiers.
+# Using str Enum means it serialises to a plain string in JSON responses
+# and FastAPI/Pydantic accept it anywhere a str is expected.
+# ---------------------------------------------------------------------------
+
+class Scenario(str, Enum):
+    baseline   = "baseline"
+    escalation = "escalation"
+    trade_war  = "trade_war"
 
 
 # ---------------------------------------------------------------------------
@@ -27,14 +47,18 @@ from functools import lru_cache
 @dataclass
 class TariffMultiplier:
     """
-    Scenario-specific adjustments to a holding's return distribution.
+    Scenario-specific parameter adjustments for one stock.
 
-    mean_adjustment: additive change to annualised mean return.
-                     -0.12 means reduce expected return by 12 percentage points.
-    vol_multiplier:  multiplicative change to annualised volatility.
-                     1.25 means increase volatility by 25%.
+    mean_factor:    relative adjustment to annualised mean return.
+                    Applied as: new_mean = historical_mean * (1 + mean_factor)
+                    -0.12 = 12% proportional reduction in expected return.
+                    Relative (not additive) so shocks scale with each
+                    stock's own return level.
+
+    vol_multiplier: multiplicative scaling of annualised volatility.
+                    1.25 = 25% increase in volatility.
     """
-    mean_adjustment: float
+    mean_factor:    float
     vol_multiplier: float
 
 
@@ -43,78 +67,20 @@ class SectorExposure:
     """
     Complete tariff exposure profile for a GICS sector.
 
-    Attributes:
-        sector_name:  Human-readable sector name
-        exposure_score: 1-5 scale for the heatmap (1=minimal, 5=maximum)
-        exposure_label: Text label for the heatmap
-        baseline:     Multipliers under scenario 1 (current tariffs hold)
-        escalation:   Multipliers under scenario 2 (30% tech/pharma tariffs)
-        trade_war:    Multipliers under scenario 3 (blanket retaliation)
+    exposure_score: 1.0–5.0 scale for the heatmap.
+                    Half-steps (e.g. 4.5) used for colour granularity.
+                    1 = minimal exposure, 5 = critical exposure.
     """
-    sector_name: str
+    sector_name:    str
     exposure_score: float
     exposure_label: str
-    baseline: TariffMultiplier
-    escalation: TariffMultiplier
-    trade_war: TariffMultiplier
+    baseline:       TariffMultiplier
+    escalation:     TariffMultiplier
+    trade_war:      TariffMultiplier
 
 
 # ---------------------------------------------------------------------------
 # Sector exposure lookup table
-#
-# Methodology:
-#
-# ESCALATION scenario (+30% tariff on tech/pharma imports):
-# - Semiconductors/hardware: -12% mean, +25% vol
-#   Basis: TSMC, ASML supply chains entirely offshore. Intel/AMD fab costs
-#   rise directly. Historical: SOX index fell 20%+ during 2018 tariff rounds.
-#
-# - Pharmaceuticals: -10% mean, +20% vol
-#   Basis: ~80% of US drug APIs sourced from China/India. FDA import
-#   dependencies documented in CBO report on drug supply chains (2023).
-#
-# - Consumer discretionary: -7% mean, +15% vol
-#   Basis: Retail (apparel, electronics) heavily import-dependent.
-#   Auto sector faces both import costs and retaliatory export tariffs.
-#
-# - Industrials: -4% mean, +10% vol
-#   Basis: Mixed. Import-heavy manufacturers hurt. Domestic infrastructure
-#   players (Caterpillar US ops) partially insulated or benefit from
-#   reshoring incentives.
-#
-# - Financials: -2% mean, +8% vol
-#   Basis: No direct tariff exposure but correlated with macro slowdown.
-#   Credit risk rises if corporate earnings compress sector-wide.
-#
-# - Communication services: -3% mean, +8% vol
-#   Basis: Hardware-dependent (network equipment, devices) but software
-#   revenues largely domestic. Mixed exposure.
-#
-# - Energy: -1% mean, +5% vol
-#   Basis: Oil/gas priced globally, limited tariff sensitivity. Some
-#   equipment costs rise. Domestic producers partially benefit from
-#   protectionist sentiment.
-#
-# - Consumer staples: -2% mean, +6% vol
-#   Basis: Some agricultural input exposure. Brand pricing power
-#   partially offsets cost increases.
-#
-# - Healthcare services: -2% mean, +6% vol
-#   Basis: Services revenue domestic. Drug cost exposure via pharma
-#   supply chain but buffered by insurance pass-through.
-#
-# - Utilities: -1% mean, +4% vol
-#   Basis: Entirely domestic revenue. Equipment imports (transformers,
-#   turbines) are a cost pressure but regulated rate recovery offsets.
-#
-# - Real estate: -1% mean, +5% vol
-#   Basis: Construction material costs rise (steel, aluminium tariffs).
-#   Otherwise domestic revenue, low direct exposure.
-#
-# TRADE WAR scenario (blanket retaliation, risk-off event):
-# All sectors receive an additional shock on top of escalation.
-# Modelled as a volatility regime shift (VIX historically doubles
-# during trade war escalations) plus uniform mean compression.
 # ---------------------------------------------------------------------------
 
 SECTOR_EXPOSURE_MAP: dict[str, SectorExposure] = {
@@ -123,148 +89,114 @@ SECTOR_EXPOSURE_MAP: dict[str, SectorExposure] = {
         sector_name="Technology",
         exposure_score=5.0,
         exposure_label="Critical exposure",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.12, vol_multiplier=1.25),
-        trade_war=TariffMultiplier(mean_adjustment=-0.22, vol_multiplier=1.60),
+        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
+        escalation=TariffMultiplier(mean_factor=-0.12, vol_multiplier=1.25),
+        trade_war=TariffMultiplier(mean_factor=-0.22,  vol_multiplier=1.60),
     ),
 
     "Health Care": SectorExposure(
         sector_name="Health Care",
         exposure_score=4.5,
         exposure_label="High exposure",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.10, vol_multiplier=1.20),
-        trade_war=TariffMultiplier(mean_adjustment=-0.18, vol_multiplier=1.50),
+        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
+        escalation=TariffMultiplier(mean_factor=-0.10, vol_multiplier=1.20),
+        trade_war=TariffMultiplier(mean_factor=-0.18,  vol_multiplier=1.50),
     ),
 
     "Consumer Discretionary": SectorExposure(
         sector_name="Consumer Discretionary",
         exposure_score=4.0,
         exposure_label="High exposure",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.07, vol_multiplier=1.15),
-        trade_war=TariffMultiplier(mean_adjustment=-0.15, vol_multiplier=1.45),
+        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
+        escalation=TariffMultiplier(mean_factor=-0.07, vol_multiplier=1.15),
+        trade_war=TariffMultiplier(mean_factor=-0.15,  vol_multiplier=1.45),
     ),
 
     "Industrials": SectorExposure(
         sector_name="Industrials",
         exposure_score=3.0,
         exposure_label="Medium exposure",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.04, vol_multiplier=1.10),
-        trade_war=TariffMultiplier(mean_adjustment=-0.12, vol_multiplier=1.40),
+        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
+        escalation=TariffMultiplier(mean_factor=-0.04, vol_multiplier=1.10),
+        trade_war=TariffMultiplier(mean_factor=-0.12,  vol_multiplier=1.40),
     ),
 
     "Communication Services": SectorExposure(
         sector_name="Communication Services",
         exposure_score=3.0,
         exposure_label="Medium exposure",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.03, vol_multiplier=1.08),
-        trade_war=TariffMultiplier(mean_adjustment=-0.10, vol_multiplier=1.35),
+        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
+        escalation=TariffMultiplier(mean_factor=-0.03, vol_multiplier=1.08),
+        trade_war=TariffMultiplier(mean_factor=-0.10,  vol_multiplier=1.35),
     ),
 
     "Financials": SectorExposure(
         sector_name="Financials",
         exposure_score=2.5,
         exposure_label="Low-medium exposure",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.02, vol_multiplier=1.08),
-        trade_war=TariffMultiplier(mean_adjustment=-0.10, vol_multiplier=1.38),
+        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
+        escalation=TariffMultiplier(mean_factor=-0.02, vol_multiplier=1.08),
+        trade_war=TariffMultiplier(mean_factor=-0.10,  vol_multiplier=1.38),
     ),
 
     "Consumer Staples": SectorExposure(
         sector_name="Consumer Staples",
         exposure_score=2.0,
         exposure_label="Low exposure",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.02, vol_multiplier=1.06),
-        trade_war=TariffMultiplier(mean_adjustment=-0.08, vol_multiplier=1.28),
+        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
+        escalation=TariffMultiplier(mean_factor=-0.02, vol_multiplier=1.06),
+        trade_war=TariffMultiplier(mean_factor=-0.08,  vol_multiplier=1.28),
     ),
 
     "Energy": SectorExposure(
         sector_name="Energy",
         exposure_score=2.0,
         exposure_label="Low exposure",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.01, vol_multiplier=1.05),
-        trade_war=TariffMultiplier(mean_adjustment=-0.08, vol_multiplier=1.30),
-    ),
-
-    "Health Care Services": SectorExposure(
-        sector_name="Health Care Services",
-        exposure_score=2.0,
-        exposure_label="Low exposure",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.02, vol_multiplier=1.06),
-        trade_war=TariffMultiplier(mean_adjustment=-0.09, vol_multiplier=1.30),
+        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
+        escalation=TariffMultiplier(mean_factor=-0.01, vol_multiplier=1.05),
+        trade_war=TariffMultiplier(mean_factor=-0.08,  vol_multiplier=1.30),
     ),
 
     "Real Estate": SectorExposure(
         sector_name="Real Estate",
         exposure_score=1.5,
         exposure_label="Minimal exposure",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.01, vol_multiplier=1.05),
-        trade_war=TariffMultiplier(mean_adjustment=-0.07, vol_multiplier=1.25),
+        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
+        escalation=TariffMultiplier(mean_factor=-0.01, vol_multiplier=1.05),
+        trade_war=TariffMultiplier(mean_factor=-0.07,  vol_multiplier=1.25),
     ),
 
     "Utilities": SectorExposure(
         sector_name="Utilities",
         exposure_score=1.0,
         exposure_label="Minimal exposure",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.01, vol_multiplier=1.04),
-        trade_war=TariffMultiplier(mean_adjustment=-0.06, vol_multiplier=1.22),
+        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
+        escalation=TariffMultiplier(mean_factor=-0.01, vol_multiplier=1.04),
+        trade_war=TariffMultiplier(mean_factor=-0.06,  vol_multiplier=1.22),
     ),
 
     "Unknown": SectorExposure(
         sector_name="Unknown",
         exposure_score=3.0,
         exposure_label="Medium exposure (unclassified)",
-        baseline=TariffMultiplier(mean_adjustment=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_adjustment=-0.05, vol_multiplier=1.12),
-        trade_war=TariffMultiplier(mean_adjustment=-0.12, vol_multiplier=1.40),
+        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
+        escalation=TariffMultiplier(mean_factor=-0.05, vol_multiplier=1.12),
+        trade_war=TariffMultiplier(mean_factor=-0.12,  vol_multiplier=1.40),
     ),
 }
 
 
 # ---------------------------------------------------------------------------
-# Public functions
+# Public functions — all logic, zero network calls
 # ---------------------------------------------------------------------------
-
-@lru_cache(maxsize=128)
-def get_sector_for_ticker(ticker: str) -> str:
-    """
-    Look up the GICS sector for a given ticker using yfinance.
-    
-    Result is cached after first call — subsequent calls for the
-    same ticker return instantly without a network request.
-    lru_cache persists for the lifetime of the server process.
-
-    Falls back to 'Unknown' if the sector cannot be determined,
-    rather than crashing — unknown tickers get medium exposure.
-
-    Args:
-        ticker: Uppercase stock ticker symbol
-
-    Returns:
-        GICS sector string matching a key in SECTOR_EXPOSURE_MAP
-    """
-    try:
-        import yfinance as yf
-        info = yf.Ticker(ticker).info
-        sector = info.get("sector", "Unknown")
-        if sector not in SECTOR_EXPOSURE_MAP:
-            return "Unknown"
-        return sector
-    except Exception:
-        return "Unknown"
-
 
 def get_exposure_for_ticker(ticker: str) -> SectorExposure:
     """
     Return the full SectorExposure profile for a given ticker.
+
+    Calls get_sector_for_ticker (in data_fetcher.py) which handles
+    the network call and caching. This function contains only lookup
+    logic — no network calls.
 
     Args:
         ticker: Uppercase stock ticker symbol
@@ -273,45 +205,38 @@ def get_exposure_for_ticker(ticker: str) -> SectorExposure:
         SectorExposure dataclass with all scenario multipliers
     """
     sector = get_sector_for_ticker(ticker)
-    return SECTOR_EXPOSURE_MAP[sector]
+    return SECTOR_EXPOSURE_MAP.get(sector, SECTOR_EXPOSURE_MAP["Unknown"])
 
 
 def get_scenario_multiplier(
     ticker: str,
-    scenario: str
+    scenario: Scenario,
 ) -> TariffMultiplier:
     """
     Return the tariff multiplier for a ticker under a specific scenario.
 
     Args:
         ticker:   Uppercase stock ticker symbol
-        scenario: One of 'baseline', 'escalation', 'trade_war'
+        scenario: Scenario enum value
 
     Returns:
-        TariffMultiplier with mean_adjustment and vol_multiplier
-
-    Raises:
-        ValueError: If scenario name is not recognised
+        TariffMultiplier with mean_factor and vol_multiplier
     """
     exposure = get_exposure_for_ticker(ticker)
-    scenario_map = {
-        "baseline":   exposure.baseline,
-        "escalation": exposure.escalation,
-        "trade_war":  exposure.trade_war,
-    }
-    if scenario not in scenario_map:
-        raise ValueError(
-            f"Unknown scenario '{scenario}'. "
-            f"Must be one of: {list(scenario_map.keys())}"
-        )
-    return scenario_map[scenario]
+    return {
+        Scenario.baseline:   exposure.baseline,
+        Scenario.escalation: exposure.escalation,
+        Scenario.trade_war:  exposure.trade_war,
+    }[scenario]
 
 
 def build_exposure_report(tickers: list[str]) -> list[dict]:
     """
     Build the exposure data for all holdings in the portfolio.
-    This feeds directly into the HoldingExposure schema and
-    the frontend heatmap component.
+    Feeds directly into HoldingExposure schema and frontend heatmap.
+
+    Uses get_exposure_for_ticker exclusively — no direct sector
+    lookups or duplicate logic.
 
     Args:
         tickers: List of uppercase ticker symbols
@@ -321,11 +246,10 @@ def build_exposure_report(tickers: list[str]) -> list[dict]:
     """
     report = []
     for ticker in tickers:
-        sector = get_sector_for_ticker(ticker)
-        exposure = SECTOR_EXPOSURE_MAP[sector]
+        exposure = get_exposure_for_ticker(ticker)
         report.append({
-            "ticker": ticker,
-            "sector": exposure.sector_name,
+            "ticker":         ticker,
+            "sector":         exposure.sector_name,
             "exposure_score": exposure.exposure_score,
             "exposure_label": exposure.exposure_label,
         })

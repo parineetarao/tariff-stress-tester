@@ -120,7 +120,7 @@ class HoldingExposure(BaseModel):
     ticker:         str
     sector:         str
     exposure_score: float = Field(..., ge=1, le=5,
-                                  description="1=minimal exposure, 5=maximum exposure")
+                                  description="Tariff exposure score 1.0-5.0. Half-steps used for heatmap colour granularity.")
     exposure_label: str
     weight:         float
 

@@ -22,7 +22,7 @@ from models.schemas import (
 )
 from services.data_fetcher import get_portfolio_data
 from services.risk_engine import run_scenario
-from services.exposure import build_exposure_report
+from services.exposure import build_exposure_report, Scenario
 from services.llm_summary import generate_summary
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -32,17 +32,17 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 # Here we only need the ids to iterate over
 SCENARIO_CONFIGS = [
     {
-        "id":    "baseline",
+        "id":    Scenario.baseline,
         "name":  "Baseline",
         "label": "Current tariffs hold",
     },
     {
-        "id":    "escalation",
+        "id":    Scenario.escalation,
         "name":  "Escalation",
         "label": "+30% tariffs on tech and pharma imports",
     },
     {
-        "id":    "trade_war",
+        "id":    Scenario.trade_war,
         "name":  "Trade War",
         "label": "Full retaliatory tariff escalation",
     },
