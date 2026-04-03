@@ -108,7 +108,7 @@ export default function Navbar() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
           {/* GitHub link */}
           <a
-            href="https://github.com"
+            href="https://github.com/parineetarao/tariff-stress-tester"
             target="_blank"
             rel="noopener noreferrer"
             style={{
