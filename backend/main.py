@@ -9,6 +9,8 @@ this file is purely wiring.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import scenarios, portfolio
+from dotenv import load_dotenv
+load_dotenv()
 
 app = FastAPI(
     title="Tariff Stress Tester API",

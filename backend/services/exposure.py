@@ -86,103 +86,104 @@ class SectorExposure:
 SECTOR_EXPOSURE_MAP: dict[str, SectorExposure] = {
 
     "Technology": SectorExposure(
-        sector_name="Technology",
-        exposure_score=5.0,
-        exposure_label="Critical exposure",
-        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_factor=-0.12, vol_multiplier=1.25),
-        trade_war=TariffMultiplier(mean_factor=-0.22,  vol_multiplier=1.60),
-    ),
+    sector_name="Technology",
+    exposure_score=5.0,
+    exposure_label="Critical exposure",
+    baseline=TariffMultiplier(mean_factor=0.0,    vol_multiplier=1.0),
+    escalation=TariffMultiplier(mean_factor=-0.25, vol_multiplier=1.35),
+    trade_war=TariffMultiplier(mean_factor=-0.45,  vol_multiplier=1.80),
+),
 
-    "Health Care": SectorExposure(
-        sector_name="Health Care",
-        exposure_score=4.5,
-        exposure_label="High exposure",
-        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_factor=-0.10, vol_multiplier=1.20),
-        trade_war=TariffMultiplier(mean_factor=-0.18,  vol_multiplier=1.50),
-    ),
+"Health Care": SectorExposure(
+    sector_name="Health Care",
+    exposure_score=4.5,
+    exposure_label="High exposure",
+    baseline=TariffMultiplier(mean_factor=0.0,    vol_multiplier=1.0),
+    escalation=TariffMultiplier(mean_factor=-0.20, vol_multiplier=1.25),
+    trade_war=TariffMultiplier(mean_factor=-0.38,  vol_multiplier=1.60),
+),
 
-    "Consumer Discretionary": SectorExposure(
-        sector_name="Consumer Discretionary",
-        exposure_score=4.0,
-        exposure_label="High exposure",
-        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_factor=-0.07, vol_multiplier=1.15),
-        trade_war=TariffMultiplier(mean_factor=-0.15,  vol_multiplier=1.45),
-    ),
+"Consumer Discretionary": SectorExposure(
+    sector_name="Consumer Discretionary",
+    exposure_score=4.0,
+    exposure_label="High exposure",
+    baseline=TariffMultiplier(mean_factor=0.0,    vol_multiplier=1.0),
+    escalation=TariffMultiplier(mean_factor=-0.15, vol_multiplier=1.20),
+    trade_war=TariffMultiplier(mean_factor=-0.30,  vol_multiplier=1.50),
+),
 
-    "Industrials": SectorExposure(
-        sector_name="Industrials",
-        exposure_score=3.0,
-        exposure_label="Medium exposure",
-        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_factor=-0.04, vol_multiplier=1.10),
-        trade_war=TariffMultiplier(mean_factor=-0.12,  vol_multiplier=1.40),
-    ),
+"Financials": SectorExposure(
+    sector_name="Financials",
+    exposure_score=2.5,
+    exposure_label="Low-medium exposure",
+    baseline=TariffMultiplier(mean_factor=0.0,    vol_multiplier=1.0),
+    escalation=TariffMultiplier(mean_factor=-0.08, vol_multiplier=1.12),
+    trade_war=TariffMultiplier(mean_factor=-0.20,  vol_multiplier=1.45),
+),
 
-    "Communication Services": SectorExposure(
-        sector_name="Communication Services",
-        exposure_score=3.0,
-        exposure_label="Medium exposure",
-        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_factor=-0.03, vol_multiplier=1.08),
-        trade_war=TariffMultiplier(mean_factor=-0.10,  vol_multiplier=1.35),
-    ),
+"Industrials": SectorExposure(
+    sector_name="Industrials",
+    exposure_score=3.0,
+    exposure_label="Medium exposure",
+    baseline=TariffMultiplier(mean_factor=0.0,    vol_multiplier=1.0),
+    escalation=TariffMultiplier(mean_factor=-0.10, vol_multiplier=1.15),
+    trade_war=TariffMultiplier(mean_factor=-0.25,  vol_multiplier=1.45),
+),
 
-    "Financials": SectorExposure(
-        sector_name="Financials",
-        exposure_score=2.5,
-        exposure_label="Low-medium exposure",
-        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_factor=-0.02, vol_multiplier=1.08),
-        trade_war=TariffMultiplier(mean_factor=-0.10,  vol_multiplier=1.38),
-    ),
+"Communication Services": SectorExposure(
+    sector_name="Communication Services",
+    exposure_score=3.0,
+    exposure_label="Medium exposure",
+    baseline=TariffMultiplier(mean_factor=0.0,    vol_multiplier=1.0),
+    escalation=TariffMultiplier(mean_factor=-0.08, vol_multiplier=1.12),
+    trade_war=TariffMultiplier(mean_factor=-0.22,  vol_multiplier=1.42),
+),
 
-    "Consumer Staples": SectorExposure(
-        sector_name="Consumer Staples",
-        exposure_score=2.0,
-        exposure_label="Low exposure",
-        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_factor=-0.02, vol_multiplier=1.06),
-        trade_war=TariffMultiplier(mean_factor=-0.08,  vol_multiplier=1.28),
-    ),
+"Consumer Staples": SectorExposure(
+    sector_name="Consumer Staples",
+    exposure_score=2.0,
+    exposure_label="Low exposure",
+    baseline=TariffMultiplier(mean_factor=0.0,    vol_multiplier=1.0),
+    escalation=TariffMultiplier(mean_factor=-0.05, vol_multiplier=1.08),
+    trade_war=TariffMultiplier(mean_factor=-0.15,  vol_multiplier=1.30),
+),
 
-    "Energy": SectorExposure(
-        sector_name="Energy",
-        exposure_score=2.0,
-        exposure_label="Low exposure",
-        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_factor=-0.01, vol_multiplier=1.05),
-        trade_war=TariffMultiplier(mean_factor=-0.08,  vol_multiplier=1.30),
-    ),
+"Energy": SectorExposure(
+    sector_name="Energy",
+    exposure_score=2.0,
+    exposure_label="Low exposure",
+    baseline=TariffMultiplier(mean_factor=0.0,    vol_multiplier=1.0),
+    escalation=TariffMultiplier(mean_factor=-0.03, vol_multiplier=1.08),
+    trade_war=TariffMultiplier(mean_factor=-0.15,  vol_multiplier=1.32),
+),
 
-    "Real Estate": SectorExposure(
-        sector_name="Real Estate",
-        exposure_score=1.5,
-        exposure_label="Minimal exposure",
-        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_factor=-0.01, vol_multiplier=1.05),
-        trade_war=TariffMultiplier(mean_factor=-0.07,  vol_multiplier=1.25),
-    ),
+"Utilities": SectorExposure(
+    sector_name="Utilities",
+    exposure_score=1.0,
+    exposure_label="Minimal exposure",
+    baseline=TariffMultiplier(mean_factor=0.0,    vol_multiplier=1.0),
+    escalation=TariffMultiplier(mean_factor=-0.02, vol_multiplier=1.05),
+    trade_war=TariffMultiplier(mean_factor=-0.10,  vol_multiplier=1.25),
+),
 
-    "Utilities": SectorExposure(
-        sector_name="Utilities",
-        exposure_score=1.0,
-        exposure_label="Minimal exposure",
-        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_factor=-0.01, vol_multiplier=1.04),
-        trade_war=TariffMultiplier(mean_factor=-0.06,  vol_multiplier=1.22),
-    ),
+"Real Estate": SectorExposure(
+    sector_name="Real Estate",
+    exposure_score=1.5,
+    exposure_label="Minimal exposure",
+    baseline=TariffMultiplier(mean_factor=0.0,    vol_multiplier=1.0),
+    escalation=TariffMultiplier(mean_factor=-0.03, vol_multiplier=1.07),
+    trade_war=TariffMultiplier(mean_factor=-0.12,  vol_multiplier=1.28),
+),
 
-    "Unknown": SectorExposure(
-        sector_name="Unknown",
-        exposure_score=3.0,
-        exposure_label="Medium exposure (unclassified)",
-        baseline=TariffMultiplier(mean_factor=0.0,   vol_multiplier=1.0),
-        escalation=TariffMultiplier(mean_factor=-0.05, vol_multiplier=1.12),
-        trade_war=TariffMultiplier(mean_factor=-0.12,  vol_multiplier=1.40),
-    ),
+"Unknown": SectorExposure(
+    sector_name="Unknown",
+    exposure_score=3.0,
+    exposure_label="Medium exposure (unclassified)",
+    baseline=TariffMultiplier(mean_factor=0.0,    vol_multiplier=1.0),
+    escalation=TariffMultiplier(mean_factor=-0.10, vol_multiplier=1.15),
+    trade_war=TariffMultiplier(mean_factor=-0.25,  vol_multiplier=1.45),
+),
+
 }
 
 

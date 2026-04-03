@@ -135,3 +135,48 @@ class PortfolioResponse(BaseModel):
     holdings_exposure:  List[HoldingExposure]
     llm_summary:        str
     computation_time_s: float = Field(..., description="How long the analysis took in seconds")
+
+
+# ---------------------------------------------------------------------------
+# Portfolio comparison models — for side-by-side portfolio analysis
+# ---------------------------------------------------------------------------
+
+class CompareRequest(BaseModel):
+    """
+    Request body for comparing two portfolios.
+
+    Attributes:
+        portfolio_a: First portfolio to analyze
+        portfolio_b: Second portfolio to analyze
+    """
+    portfolio_a: PortfolioRequest
+    portfolio_b: PortfolioRequest
+
+
+class PortfolioSummary(BaseModel):
+    """
+    Summary metrics for one portfolio under one scenario.
+    Used in portfolio comparison view.
+    """
+    label: str = Field(..., description="Portfolio label: 'A' or 'B'")
+    tickers: List[str] = Field(..., description="List of tickers in portfolio")
+    scenario_name: str = Field(..., description="Scenario identifier: baseline, escalation, or trade_war")
+    expected_value: float = Field(..., description="Expected terminal portfolio value (USD)")
+    var_95: float = Field(..., description="Value at Risk at 95% (USD)")
+    prob_loss_20pct: float = Field(..., description="Probability of loss > 20%")
+    sharpe_ratio: float = Field(..., description="Annualised Sharpe ratio")
+    annualised_return: float = Field(default=0.0, description="Expected annualised return as decimal")
+    annualised_vol: float = Field(..., description="Annualised volatility as decimal")
+    top_exposure: str = Field(..., description="Ticker with highest tariff exposure")
+    top_exposure_score: float = Field(..., ge=1, le=5, description="Exposure score of top holding")
+
+
+class CompareResponse(BaseModel):
+    """
+    Response from portfolio comparison endpoint.
+    Contains summary metrics for both portfolios and winner determination.
+    """
+    portfolio_a: List[PortfolioSummary] = Field(..., description="Portfolio A summaries for each scenario")
+    portfolio_b: List[PortfolioSummary] = Field(..., description="Portfolio B summaries for each scenario")
+    winner: str = Field(..., description="Winner: 'A' or 'B'")
+    winner_reason: str = Field(..., description="One-sentence explanation of why this portfolio is safer")

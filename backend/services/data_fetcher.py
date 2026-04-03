@@ -49,10 +49,14 @@ def fetch_price_data(tickers: list[str]) -> pd.DataFrame:
     # Validate we got data for all requested tickers
     missing = [t for t in tickers if t not in prices.columns]
     if missing:
-        raise ValueError(
-            f"Could not fetch price data for: {missing}. "
-            f"Check that these are valid ticker symbols."
+        # Remove invalid tickers instead of crashing
+        valid_tickers = [t for t in tickers if t in prices.columns]
+        if len(valid_tickers) < 2:
+            raise ValueError(
+                f"Could not fetch data for: {missing}. "
+                f"Need at least 2 valid tickers."
         )
+        prices = prices[valid_tickers]
 
     # Fill missing values caused by market holidays or data gaps
     prices = prices.ffill().bfill()
@@ -170,26 +174,66 @@ def get_portfolio_data(tickers: list[str]) -> dict:
     }
 
 
+SECTOR_NAME_MAP = {
+    "Technology":             "Technology",
+    "Information Technology": "Technology",
+    "Healthcare":             "Health Care",
+    "Health Care":            "Health Care",
+    "Pharmaceuticals":        "Health Care",
+    "Biotechnology":          "Health Care",
+    "Drug Manufacturers":     "Health Care",
+    "Medical Devices":        "Health Care",
+    "Financial Services":     "Financials",
+    "Financials":             "Financials",
+    "Banks":                  "Financials",
+    "Insurance":              "Financials",
+    "Asset Management":       "Financials",
+    "Consumer Cyclical":      "Consumer Discretionary",
+    "Consumer Discretionary": "Consumer Discretionary",
+    "Automotive":             "Consumer Discretionary",
+    "Retail":                 "Consumer Discretionary",
+    "Consumer Defensive":     "Consumer Staples",
+    "Consumer Staples":       "Consumer Staples",
+    "Grocery Stores":         "Consumer Staples",
+    "Beverages":              "Consumer Staples",
+    "Industrials":            "Industrials",
+    "Aerospace & Defense":    "Industrials",
+    "Basic Materials":        "Industrials",
+    "Chemicals":              "Industrials",
+    "Energy":                 "Energy",
+    "Oil & Gas":              "Energy",
+    "Real Estate":            "Real Estate",
+    "Utilities":              "Utilities",
+    "Communication Services": "Communication Services",
+    "Telecommunications":     "Communication Services",
+    "Media":                  "Communication Services",
+}
+
+
 @lru_cache(maxsize=128)
 def get_sector_for_ticker(ticker: str) -> str:
     """
     Look up the GICS sector for a given ticker using yfinance.
 
+    Normalises yfinance sector names to match SECTOR_EXPOSURE_MAP keys.
+    yfinance returns names like 'Healthcare' and 'Financial Services'
+    which differ from standard GICS names like 'Health Care' and
+    'Financials'. Without this mapping every non-Tech ticker falls
+    through to Unknown and gets generic medium exposure.
+
     Cached after first call — subsequent calls return instantly
     without a network request. Cache persists for server lifetime.
-
-    Lives in data_fetcher.py because it makes a network request.
-    exposure.py imports from here rather than fetching directly.
 
     Args:
         ticker: Uppercase stock ticker symbol
 
     Returns:
-        GICS sector string e.g. 'Technology', 'Health Care'
-        Falls back to 'Unknown' if lookup fails.
+        Normalised sector string matching a key in SECTOR_EXPOSURE_MAP.
+        Falls back to 'Unknown' if lookup fails or sector unrecognised.
     """
     try:
         info = yf.Ticker(ticker).info
-        return info.get("sector", "Unknown")
+        raw_sector = info.get("sector", "Unknown")
+        return SECTOR_NAME_MAP.get(raw_sector, "Unknown")
     except Exception:
         return "Unknown"

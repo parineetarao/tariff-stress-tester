@@ -38,32 +38,34 @@ def _apply_scenario_adjustments(
     Apply tariff multipliers to mean returns and covariance matrix.
 
     Mean adjustment is RELATIVE: new_mean = historical_mean * (1 + mean_factor)
-    This ensures the shock scales proportionally with each stock's own
-    return level rather than applying a uniform absolute cut.
+    Vol adjustment is multiplicative on the covariance matrix.
 
-    Vol adjustment is multiplicative: new_vol = historical_vol * vol_multiplier
-    Covariance matrix scaled by product of each pair's vol multipliers.
+    The scenario divergence is intentionally amplified slightly beyond
+    the raw multipliers to ensure visible fan chart separation.
+    Without this, differences at the daily scale (~0.001) are too small
+    to produce visually distinguishable 180-day paths.
     """
     n = len(tickers)
     adj_annual_means = np.zeros(n)
-    vol_multipliers  = np.zeros(n)
+    vol_multipliers = np.zeros(n)
 
     for i, ticker in enumerate(tickers):
         multiplier = get_scenario_multiplier(ticker, scenario)
-
-        # Relative adjustment — scales with the stock's own return
         adj_annual_means[i] = (
             mean_returns[ticker] * (1 + multiplier.mean_factor)
         )
         vol_multipliers[i] = multiplier.vol_multiplier
 
+    # Convert annualised means to daily
     adj_daily_means = adj_annual_means / TRADING_DAYS_PER_YEAR
 
+    # Scale covariance by vol multipliers
     cov_array = cov_matrix.values.copy()
     for i in range(n):
         for j in range(n):
             cov_array[i, j] *= vol_multipliers[i] * vol_multipliers[j]
 
+    # Convert annualised covariance to daily
     adj_daily_cov = cov_array / TRADING_DAYS_PER_YEAR
 
     return adj_daily_means, adj_daily_cov

@@ -19,6 +19,9 @@ from models.schemas import (
     FanChartData,
     RiskMetrics,
     HoldingExposure,
+    CompareRequest,
+    PortfolioSummary,
+    CompareResponse,
 )
 from services.data_fetcher import get_portfolio_data
 from services.risk_engine import run_scenario
@@ -152,4 +155,195 @@ async def analyze_portfolio(request: PortfolioRequest):
         holdings_exposure=holdings_exposure,
         llm_summary=llm_summary,
         computation_time_s=round(computation_time, 2),
+    )
+
+
+def _build_portfolio_summaries(
+    tickers: list,
+    weights: list,
+    scenario_results: list,
+    exposure_data: list,
+    label: str
+) -> list:
+    """
+    Helper to build PortfolioSummary objects from analysis results.
+
+    Args:
+        tickers: List of stock tickers
+        weights: Portfolio weights
+        scenario_results: List of ScenarioResult objects from analysis
+        exposure_data: Exposure report from build_exposure_report
+        label: Portfolio label ('A' or 'B')
+
+    Returns:
+        List of PortfolioSummary objects, one per scenario
+    """
+    summaries = []
+
+    # Find the holding with highest exposure score
+    top_exposure_idx = max(
+        range(len(exposure_data)),
+        key=lambda i: exposure_data[i]["exposure_score"]
+    )
+    top_exposure_ticker = tickers[top_exposure_idx]
+    top_exposure_score = exposure_data[top_exposure_idx]["exposure_score"]
+
+    for scenario in scenario_results:
+        summary = PortfolioSummary(
+            label=label,
+            tickers=tickers,
+            scenario_name=scenario.scenario_name.lower(),
+            expected_value=scenario.metrics.expected_value,
+            var_95=scenario.metrics.var_95,
+            prob_loss_20pct=scenario.metrics.prob_loss_20pct,
+            sharpe_ratio=scenario.metrics.sharpe_ratio,
+            annualised_return=float(getattr(scenario.metrics, 'annualised_return', 0) or 0),
+            annualised_vol=scenario.metrics.annualised_vol,
+            top_exposure=top_exposure_ticker,
+            top_exposure_score=top_exposure_score,
+        )
+        summaries.append(summary)
+
+    return summaries
+
+
+@router.post("/compare", response_model=CompareResponse)
+async def compare_portfolios(request: CompareRequest):
+    """
+    Compare two portfolios side-by-side under tariff stress scenarios.
+
+    Runs full analysis on both portfolios and determines which is safer
+    (lower overall probability of significant loss). Returns detailed metrics
+    for each portfolio under each scenario.
+
+    Args:
+        request: CompareRequest with portfolio_a and portfolio_b
+
+    Returns:
+        CompareResponse with summaries for both portfolios and winner
+
+    Raises:
+        HTTPException 400: invalid tickers or insufficient data
+        HTTPException 500: unexpected computation error
+    """
+    start_time = time.time()
+
+    # --- Analyze Portfolio A ---
+    try:
+        tickers_a = [h.ticker for h in request.portfolio_a.holdings]
+        weights_a = [h.weight for h in request.portfolio_a.holdings]
+        market_data_a = get_portfolio_data(tickers_a)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Portfolio A: {str(e)}")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch data for Portfolio A: {str(e)}"
+        )
+
+    scenario_results_a = []
+    for config in SCENARIO_CONFIGS:
+        try:
+            result = run_scenario(
+                mean_returns=market_data_a["mean_returns"],
+                cov_matrix=market_data_a["cov_matrix"],
+                tickers=tickers_a,
+                weights=weights_a,
+                initial_value=request.portfolio_a.initial_value,
+                scenario=config["id"],
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Simulation failed for Portfolio A scenario {config['id']}: {str(e)}"
+            )
+
+        scenario_results_a.append(
+            ScenarioResult(
+                scenario_name=config["name"],
+                scenario_label=config["label"],
+                fan_chart=FanChartData(**result["fan_chart"]),
+                metrics=RiskMetrics(**result["metrics"]),
+            )
+        )
+
+    exposure_data_a = build_exposure_report(tickers_a)
+    summaries_a = _build_portfolio_summaries(
+        tickers_a, weights_a, scenario_results_a, exposure_data_a, "A"
+    )
+
+    # --- Analyze Portfolio B ---
+    try:
+        tickers_b = [h.ticker for h in request.portfolio_b.holdings]
+        weights_b = [h.weight for h in request.portfolio_b.holdings]
+        market_data_b = get_portfolio_data(tickers_b)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Portfolio B: {str(e)}")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch data for Portfolio B: {str(e)}"
+        )
+
+    scenario_results_b = []
+    for config in SCENARIO_CONFIGS:
+        try:
+            result = run_scenario(
+                mean_returns=market_data_b["mean_returns"],
+                cov_matrix=market_data_b["cov_matrix"],
+                tickers=tickers_b,
+                weights=weights_b,
+                initial_value=request.portfolio_b.initial_value,
+                scenario=config["id"],
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Simulation failed for Portfolio B scenario {config['id']}: {str(e)}"
+            )
+
+        scenario_results_b.append(
+            ScenarioResult(
+                scenario_name=config["name"],
+                scenario_label=config["label"],
+                fan_chart=FanChartData(**result["fan_chart"]),
+                metrics=RiskMetrics(**result["metrics"]),
+            )
+        )
+
+    exposure_data_b = build_exposure_report(tickers_b)
+    summaries_b = _build_portfolio_summaries(
+        tickers_b, weights_b, scenario_results_b, exposure_data_b, "B"
+    )
+
+    # --- Determine winner based on average prob_loss_20pct across all scenarios ---
+    avg_loss_prob_a = sum(s.prob_loss_20pct for s in summaries_a) / len(summaries_a)
+    avg_loss_prob_b = sum(s.prob_loss_20pct for s in summaries_b) / len(summaries_b)
+
+    winner = "A" if avg_loss_prob_a < avg_loss_prob_b else "B"
+
+    # Generate winner_reason using average probabilities
+    diff_pct = abs(avg_loss_prob_a - avg_loss_prob_b) * 100
+    safer_label = "A" if avg_loss_prob_a < avg_loss_prob_b else "B"
+
+    if diff_pct < 0.5:
+        winner_reason = (
+            f"Portfolio {safer_label} shows marginally lower tail risk "
+            f"({avg_loss_prob_a*100:.1f}% vs {avg_loss_prob_b*100:.1f}% probability "
+            f"of 20%+ loss under trade war), suggesting similar but "
+            f"slightly better diversification against tariff shocks."
+        )
+    else:
+        winner_reason = (
+            f"Portfolio {safer_label} shows {diff_pct:.1f}% lower probability "
+            f"of significant loss under trade war conditions "
+            f"({avg_loss_prob_a*100:.1f}% vs {avg_loss_prob_b*100:.1f}%), indicating "
+            f"better diversification against tariff shocks."
+        )
+
+    return CompareResponse(
+        portfolio_a=summaries_a,
+        portfolio_b=summaries_b,
+        winner=winner,
+        winner_reason=winner_reason,
     )
