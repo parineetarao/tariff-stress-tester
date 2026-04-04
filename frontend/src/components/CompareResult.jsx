@@ -36,7 +36,20 @@ function safeRatio(val) {
 export default function CompareResult({ result, onBack }) {
   const color_a = '#00d4aa'
   const color_b = '#f59e0b'
-  const winner_color = result.winner === 'A' ? color_a : color_b
+  let winner_color = result.winner === 'A' ? color_a : color_b
+  let bannerBackground = `${winner_color}15`
+  let bannerBorderColor = `${winner_color}40`
+  let bannerTitle = `Portfolio ${result.winner} is Safer`
+  let bannerTitleColor = '#ffffff'
+
+  // Handle TIE case
+  if (result.winner === "TIE") {
+    bannerBackground = 'rgba(255,255,255,0.05)'
+    bannerBorderColor = 'rgba(255,255,255,0.15)'
+    bannerTitle = "Portfolios are equivalent"
+    bannerTitleColor = '#8b8b9e'
+    winner_color = '#8b8b9e'
+  }
 
   // Get Trade War scenario (index 2) for detailed comparison
   const trade_war_a = result.portfolio_a[2]
@@ -127,8 +140,8 @@ export default function CompareResult({ result, onBack }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.1 }}
         style={{
-          backgroundColor: `${winner_color}15`,
-          border: `2px solid ${winner_color}40`,
+          backgroundColor: bannerBackground,
+          border: `2px solid ${bannerBorderColor}`,
           borderRadius: '16px',
           padding: '32px',
           marginBottom: '40px',
@@ -150,12 +163,12 @@ export default function CompareResult({ result, onBack }) {
           style={{
             fontSize: '28px',
             fontWeight: 700,
-            color: '#ffffff',
+            color: bannerTitleColor,
             margin: 0,
             marginBottom: '12px',
           }}
         >
-          Portfolio {result.winner} is Safer
+          {bannerTitle}
         </h2>
         <p
           style={{

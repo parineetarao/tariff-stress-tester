@@ -317,28 +317,34 @@ async def compare_portfolios(request: CompareRequest):
     )
 
     # --- Determine winner based on average prob_loss_20pct across all scenarios ---
-    avg_loss_prob_a = sum(s.prob_loss_20pct for s in summaries_a) / len(summaries_a)
-    avg_loss_prob_b = sum(s.prob_loss_20pct for s in summaries_b) / len(summaries_b)
+    avg_loss_a = sum(s.prob_loss_20pct for s in summaries_a) / len(summaries_a)
+    avg_loss_b = sum(s.prob_loss_20pct for s in summaries_b) / len(summaries_b)
 
-    winner = "A" if avg_loss_prob_a < avg_loss_prob_b else "B"
+    diff = abs(avg_loss_a - avg_loss_b)
 
-    # Generate winner_reason using average probabilities
-    diff_pct = abs(avg_loss_prob_a - avg_loss_prob_b) * 100
-    safer_label = "A" if avg_loss_prob_a < avg_loss_prob_b else "B"
-
-    if diff_pct < 0.5:
+    if diff < 0.005:  # less than 0.5 percentage points difference
+        winner = "TIE"
         winner_reason = (
-            f"Portfolio {safer_label} shows marginally lower tail risk "
-            f"({avg_loss_prob_a*100:.1f}% vs {avg_loss_prob_b*100:.1f}% probability "
-            f"of 20%+ loss under trade war), suggesting similar but "
-            f"slightly better diversification against tariff shocks."
+            f"Both portfolios show essentially identical tariff risk "
+            f"({avg_loss_a*100:.1f}% vs {avg_loss_b*100:.1f}% probability "
+            f"of 20%+ loss under trade war). The difference is within "
+            f"Monte Carlo simulation noise and is not meaningful."
+        )
+    elif avg_loss_a < avg_loss_b:
+        winner = "A"
+        winner_reason = (
+            f"Portfolio A shows {diff*100:.1f}% lower probability of "
+            f"significant loss under trade war conditions "
+            f"({avg_loss_a*100:.1f}% vs {avg_loss_b*100:.1f}%), "
+            f"indicating better diversification against tariff shocks."
         )
     else:
+        winner = "B"
         winner_reason = (
-            f"Portfolio {safer_label} shows {diff_pct:.1f}% lower probability "
-            f"of significant loss under trade war conditions "
-            f"({avg_loss_prob_a*100:.1f}% vs {avg_loss_prob_b*100:.1f}%), indicating "
-            f"better diversification against tariff shocks."
+            f"Portfolio B shows {diff*100:.1f}% lower probability of "
+            f"significant loss under trade war conditions "
+            f"({avg_loss_b*100:.1f}% vs {avg_loss_a*100:.1f}%), "
+            f"indicating better diversification against tariff shocks."
         )
 
     return CompareResponse(
