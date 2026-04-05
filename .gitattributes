@@ -1,0 +1,7 @@
+frontend/src/*.jsx linguist-detectable=false
+frontend/src/*.js linguist-detectable=false
+*.jsx linguist-detectable=false
+*.js linguist-detectable=false
+
+# Explicitly mark Python files as detectable
+*.py linguist-detectable=true
