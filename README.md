@@ -1,7 +1,7 @@
 # Tariff Stress Tester
 
 **Live demo:** https://tariff-stress-tester.vercel.app  
-**API docs:** https://tariff-stress-tester-production.up.railway.app/docs
+**API docs:** https://tariff-stress-tester.onrender.com/docs
 
 A Monte Carlo portfolio stress testing tool that simulates 10,000 
 correlated future paths under three US tariff escalation scenarios. 
