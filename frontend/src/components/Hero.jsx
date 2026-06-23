@@ -1,5 +1,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
+import TickerTape from './TickerTape'
+import CandlestickBackground from './CandlestickBackground'
 
 export default function Hero() {
   const scrollToAnalyze = () => {
@@ -70,18 +72,8 @@ export default function Hero() {
         background: 'radial-gradient(ellipse 100% 70% at 50% 0%, rgba(0,212,170,0.09) 0%, rgba(0,212,170,0.02) 40%, #06060a 70%)',
       }}
     >
-      {/* Grid texture overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
+      {/* Candlestick background */}
+      <CandlestickBackground />
       {/* Content container */}
       <motion.div
         style={{
@@ -275,11 +267,13 @@ export default function Hero() {
         </motion.button>
       </motion.div>
 
+      <TickerTape />
+
       {/* Scroll indicator */}
       <motion.div
         style={{
           position: 'absolute',
-          bottom: '32px',
+          bottom: '52px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',

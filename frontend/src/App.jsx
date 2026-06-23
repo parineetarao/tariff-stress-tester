@@ -9,6 +9,10 @@ import RiskSummaryCard from './components/RiskSummaryCard'
 import ScenarioFanChart from './components/ScenarioFanChart'
 import RiskMetricsTable from './components/RiskMetricsTable'
 import ExposureHeatmap from './components/ExposureHeatmap'
+import SectorOrbit from './components/SectorOrbit'
+import WorldExposureMap from './components/WorldExposureMap'
+import TariffIndustryContext from './components/TariffIndustryContext'
+import TimelineNarrative from './components/TimelineNarrative'
 import WhatIfPanel from './components/WhatIfPanel'
 import MethodologyStrip from './components/MethodologyStrip'
 import Footer from './components/Footer'
@@ -21,6 +25,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [comparing, setComparing] = useState(false)
+  const [exposureView, setExposureView] = useState('orbit')
 
   const handleAnalyze = async (holdings, initialValue) => {
     setLoading(true)
@@ -83,13 +88,11 @@ export default function App() {
         <>
           <Hero />
 
-          {/* Separator line */}
-          <div
-            style={{
-              height: '1px',
-              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)',
-            }}
-          />
+          <WorldExposureMap />
+
+          <TariffIndustryContext />
+
+          <TimelineNarrative />
 
           <ScenarioCards />
 
@@ -321,7 +324,50 @@ export default function App() {
                         <RiskMetricsTable results={results} />
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        <ExposureHeatmap results={results} />
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '6px',
+                            marginBottom: '12px',
+                          }}
+                        >
+                          {[
+                            { id: 'orbit', label: 'Orbit View' },
+                            { id: 'grid', label: 'Grid View' },
+                          ].map((view) => (
+                            <button
+                              key={view.id}
+                              type="button"
+                              onClick={() => setExposureView(view.id)}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: '999px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                letterSpacing: '0.04em',
+                                cursor: 'pointer',
+                                border:
+                                  exposureView === view.id
+                                    ? '1px solid rgba(0,212,170,0.35)'
+                                    : '1px solid rgba(255,255,255,0.08)',
+                                backgroundColor:
+                                  exposureView === view.id
+                                    ? 'rgba(0,212,170,0.1)'
+                                    : 'transparent',
+                                color:
+                                  exposureView === view.id ? '#00d4aa' : '#8b8b9e',
+                                transition: 'all 150ms ease',
+                              }}
+                            >
+                              {view.label}
+                            </button>
+                          ))}
+                        </div>
+                        {exposureView === 'orbit' ? (
+                          <SectorOrbit results={results} />
+                        ) : (
+                          <ExposureHeatmap results={results} />
+                        )}
                       </div>
                     </div>
 

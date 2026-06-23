@@ -62,9 +62,8 @@ export default function Navbar() {
       <div
         style={{
           height: '100%',
-          maxWidth: '1280px',
-          margin: '0 auto',
-          padding: '0 32px',
+          width: '100%',
+          padding: '0 16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -72,11 +71,11 @@ export default function Navbar() {
       >
         {/* Left: Logo and company name */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* TST Monogram Badge */}
+          {/* Stock Arrow + Candlesticks Logo Badge */}
           <div
             style={{
-              width: '28px',
-              height: '28px',
+              width: '36px',
+              height: '36px',
               borderRadius: '6px',
               backgroundColor: 'rgba(0,212,170,0.12)',
               border: '1px solid rgba(0,212,170,0.25)',
@@ -84,12 +83,19 @@ export default function Navbar() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontFamily: '"JetBrains Mono", "Courier New", monospace',
-              fontSize: '11px',
-              fontWeight: 700,
             }}
           >
-            TST
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: '22px', height: '22px' }}>
+              {/* Zigzag Arrow */}
+              <path d="M3 18 L8 12 L12 15 L16 9 L21 14 L21 4 L17 4" fill="none" stroke="currentColor" strokeWidth="2.2" />
+              {/* Small Candlesticks */}
+              <rect x="7" y="10" width="2" height="4" rx="0.5" fill="currentColor" opacity="0.7" />
+              <line x1="8" y1="9" x2="8" y2="15" stroke="currentColor" strokeWidth="1" opacity="0.5" />
+              <rect x="11" y="11" width="2" height="3" rx="0.5" fill="currentColor" opacity="0.7" />
+              <line x1="12" y1="10" x2="12" y2="15" stroke="currentColor" strokeWidth="1" opacity="0.5" />
+              <rect x="15" y="7" width="2" height="5" rx="0.5" fill="currentColor" opacity="0.7" />
+              <line x1="16" y1="6" x2="16" y2="13" stroke="currentColor" strokeWidth="1" opacity="0.5" />
+            </svg>
           </div>
 
           {/* Company name */}
